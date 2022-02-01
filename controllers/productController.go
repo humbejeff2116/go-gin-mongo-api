@@ -1,21 +1,18 @@
-
-
-
-
-
 package controllers;
 
 import (
-    "context"
-    "go-gin-mongo-api/configs"
-    "go-gin-mongo-api/models"
-    "go-gin-mongo-api/responses"
-    "net/http"
-    "time"
-    "github.com/gin-gonic/gin"
-    "github.com/go-playground/validator/v10"
-    "go.mongodb.org/mongo-driver/bson/primitive"
-    "go.mongodb.org/mongo-driver/mongo"
+	"context"
+    "log"
+	"go-gin-mongo-api/configs"
+	"go-gin-mongo-api/models"
+	"go-gin-mongo-api/responses"
+	"net/http"
+	"time"
+	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 
@@ -28,7 +25,7 @@ type ProductController interface {
 }
 
 
-var productCollection *mongo.Collection = configs.GetCollection(configs.MongodbClient, configs.SetServerConfigurations().DatabaseURI, "products")
+var productCollection *mongo.Collection = configs.GetCollection(configs.MongodbClient, "golang", "products");
 var validate = validator.New()
 
 func CreateProduct(c *gin.Context){
@@ -78,6 +75,7 @@ func CreateProduct(c *gin.Context){
             Message: "error", 
             ErrorData: map[string]interface{}{ "data": err.Error() },
         }
+        log.Fatal(err);
         c.JSON(http.StatusInternalServerError, response)
         return
     }
@@ -90,81 +88,48 @@ func CreateProduct(c *gin.Context){
 }
 
 // TODO... get products from database and send to client
-func GetProducts (c *gin.Context) {
-
-    var products = []models.ProductModel{
-        
+func GetProducts(c *gin.Context) {
+    var response responses.ProductResponse;
+    var products []bson.D;
+    // create a custom mongoDB context 
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second);
+    defer cancel();
+    // access products using a cursor(allows us to iterate over db while holding only a subset of them in memory at a given time)
+    cursor, err := productCollection.Find(ctx, bson.D{});
+   
+    if err != nil {
+        response = responses.ProductResponse{
+            Status: http.StatusInternalServerError, 
+            Error: true,
+            ErrorData: map[string]interface{}{ "data": err.Error() },
+            Message: "error occured while getting products from database",
+        }
+        log.Fatal(err);
+        c.JSON(http.StatusInternalServerError, response);
+        return
+        // panic(err)
     }
-    response := responses.ProductResponse{
-        Status: http.StatusCreated, 
-        Message: "product created successfully", 
+    // close cursor to free resources it consumes in both the client application and the MongoDB server
+    defer cursor.Close(ctx);
+    //populate products array with all products query results
+    err = cursor.All(ctx, &products);
+    if  err != nil {
+        response = responses.ProductResponse{
+            Status: http.StatusInternalServerError,
+            Error: true, 
+            ErrorData: map[string]interface{}{ "data": err.Error() },
+            Message: "error",   
+        }
+        log.Fatal(err);
+        c.JSON(http.StatusInternalServerError, response);
+        return
+        // panic(err)
+    }
+
+    response = responses.ProductResponse{
+        Status: http.StatusOK, 
+        Message: "products gotten successfully", 
         Data: map[string]interface{}{"data": products },
     }
     c.JSON(http.StatusOK, response);
 }
-
-
-
-
-
-
-
-
-
-
-
-// func CreateProduct() gin.HandlerFunc {
-//     return func(c *gin.Context) {
-// 		var response responses.ProductResponse;
-//         ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-//         var product models.ProductModel
-//         defer cancel()
-
-//         //validate the request body
-//         err := c.BindJSON(&product);
-//         if  err != nil {
-//             response = responses.ProductResponse{
-//                 Status: http.StatusBadRequest, 
-//                 Message: "error", 
-//                 Data: map[string]interface{}{"data": err.Error()},
-//             } 
-//             c.JSON(http.StatusBadRequest, response)
-//             return
-//         }
-
-//         //use the validator library to validate required fields
-//         validationErr := validate.Struct(&product);
-//         if  validationErr != nil {
-//             response = responses.ProductResponse{
-//                 Status: http.StatusBadRequest,
-//                 Error: true, 
-//                 Message: "error", 
-//                 Data: map[string]interface{}{"data": validationErr.Error()},
-//             }
-//             c.JSON(http.StatusBadRequest, response)
-//             return
-//         }
-
-//         newProduct := models.ProductModel{
-//             Id:       primitive.NewObjectID(),
-//             UserName:     product.UserName,
-//         }
-      
-//         result, err := productCollection.InsertOne(ctx, newProduct)
-//         if err != nil {
-// 			response = responses.ProductResponse{
-// 				Status: http.StatusInternalServerError, 
-// 				Message: "error", 
-// 				Data: map[string]interface{}{ "data": err.Error() },
-// 			}
-//             c.JSON(http.StatusInternalServerError, response)
-//             return
-//         }
-// 		response = responses.ProductResponse{
-// 			Status: http.StatusCreated, 
-// 			Message: "product created successfully", 
-// 			Data: map[string]interface{}{ "data": result },
-// 		}
-//         c.JSON(http.StatusCreated, response)
-//     }
-// }
