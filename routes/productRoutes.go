@@ -14,4 +14,5 @@ func ProductRoutes(router *gin.Engine)  {
 	router.GET("/products", controllers.GetProducts)
 	router.GET("/product/:productId", controllers.GetProduct)
 	router.PUT("/update-product", controllers.UpdateProduct);
+	router.DELETE("/product/:productId", controllers.UpdateProduct);
 }
