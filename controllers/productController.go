@@ -9,7 +9,7 @@ import (
 	"log"
 	"net/http"
 	"time"
-    
+
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/bson"
@@ -42,7 +42,7 @@ func CreateProduct(c *gin.Context){
         // NOTE: return ErrorData to client only when in development
         response = responses.ProductResponse{
             Status: http.StatusBadRequest, 
-            Message: "error", 
+            Message: "JSON validation failed", 
             ErrorData: map[string]interface{}{"data": err.Error()},
         } 
         c.JSON(http.StatusBadRequest, response)
@@ -56,7 +56,7 @@ func CreateProduct(c *gin.Context){
         response = responses.ProductResponse{
             Status: http.StatusBadRequest,
             Error: true, 
-            Message: "error", 
+            Message: "JSON format is incorrect", 
             ErrorData: map[string]interface{}{"data": validationErr.Error()},
         }
         c.JSON(http.StatusBadRequest, response)
@@ -74,7 +74,7 @@ func CreateProduct(c *gin.Context){
     if err != nil {
         response = responses.ProductResponse{
             Status: http.StatusInternalServerError, 
-            Message: "error", 
+            Message: "failed to create product", 
             ErrorData: map[string]interface{}{ "data": err.Error() },
         }
         log.Fatal(err);
@@ -134,6 +134,37 @@ func GetProducts(c *gin.Context) {
         Data: map[string]interface{}{"data": products },
     }
     c.JSON(http.StatusOK, response);
+}
+
+func GetProduct(c *gin.Context) {
+    var response responses.ProductResponse;
+    var product models.ProductModel
+    userId := c.Param("productId")
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+
+    objId, _ := primitive.ObjectIDFromHex(userId)
+
+    err := productCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&product)
+    if err != nil {
+        log.Fatal(err);
+        response = responses.ProductResponse{
+            Status: http.StatusInternalServerError,
+            Error: true, 
+            ErrorData: map[string]interface{}{ "data": err.Error() },
+            Message: "An error occured while getting product",   
+        }
+        c.JSON(http.StatusInternalServerError, response)
+        return
+    }
+    response = responses.ProductResponse{
+        Status: http.StatusOK, 
+        Message: "product gotten successfully", 
+        Data: map[string]interface{}{"data": product },
+    }
+
+    c.JSON(http.StatusOK, response)
+    
 }
 
 
