@@ -9,12 +9,15 @@ import (
 	"log"
 	"net/http"
 	"time"
+    "path/filepath"
+
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+    "github.com/google/uuid" // To generate random file names
 )
 
 
@@ -31,42 +34,50 @@ var productCollection *mongo.Collection = configs.GetCollection(configs.MongodbC
 var validate = validator.New()
 
 func CreateProduct(c *gin.Context){
+    var productImages []string
     var response responses.ProductResponse;
     ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
     var product models.ProductModel
     defer cancel()
 
-    //validate the request body
-    err := c.BindJSON(&product);
-    if  err != nil {
-        // NOTE: return ErrorData to client only when in development
+    form, err := c.MultipartForm()
+    if err != nil {
         response = responses.ProductResponse{
             Status: http.StatusBadRequest, 
             Error: true,
-            Message: "JSON validation failed", 
-            ErrorData: map[string]interface{}{"data": err.Error()},
-        } 
-        c.JSON(http.StatusBadRequest, response)
+            Message: "error occured while reading form", 
+        }
+        c.AbortWithStatusJSON(http.StatusBadRequest, response)
         return
+    }
+    files := form.File["files"]
+    
+    for _, file := range files {
+        filename := filepath.Base(file.Filename)
+        // Generate a random file name for file so it doesn't override any file that has already been uploaded with the same name
+        newFileName := uuid.New().String() + filename
+
+        // TODO... upload files to cloud storage (cdn) and save urls in database
+        productImages = append(productImages, "product Image url from cdn after upload")
+        // TODO... remove code below after implementing  cdn file upload functionality
+        err := c.SaveUploadedFile(file, "../public/uploads/product_images/" + newFileName);
+        if  err != nil {
+            response = responses.ProductResponse{
+                Status: http.StatusBadRequest, 
+                Error: true,
+                Message: "error occured while uploading file", 
+            }
+            c.AbortWithStatusJSON(http.StatusBadRequest, response)
+            return
+        }
     }
 
-    //validate required fields using validator library
-    validationErr := validate.Struct(&product);
-    if  validationErr != nil {
-        // NOTE: return ErrorData to client only when in development
-        response = responses.ProductResponse{
-            Status: http.StatusBadRequest,
-            Error: true, 
-            Message: "JSON format is incorrect", 
-            ErrorData: map[string]interface{}{"data": validationErr.Error()},
-        }
-        c.JSON(http.StatusBadRequest, response)
-        return
-    }
-    // TODO... update newProduct struct properties
     newProduct := models.ProductModel{
-        Id:       primitive.NewObjectID(),
-        UserName:     product.UserName,
+        Id: primitive.NewObjectID(),
+        ProductName: product.ProductName,
+        ProductCategory: product.ProductCategory,
+        ProductPrice: product.ProductPrice,
+        ProductImages: productImages, 
     }
   
     result, err := productCollection.InsertOne(ctx, newProduct)
@@ -264,6 +275,6 @@ func DeleteProduct(c *gin.Context) {
         Status: http.StatusOK, 
         Message: "product deleted successfully", 
     }
-    
+
     c.JSON(http.StatusOK, response)
 }
