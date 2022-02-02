@@ -42,6 +42,7 @@ func CreateProduct(c *gin.Context){
         // NOTE: return ErrorData to client only when in development
         response = responses.ProductResponse{
             Status: http.StatusBadRequest, 
+            Error: true,
             Message: "JSON validation failed", 
             ErrorData: map[string]interface{}{"data": err.Error()},
         } 
@@ -74,6 +75,7 @@ func CreateProduct(c *gin.Context){
     if err != nil {
         response = responses.ProductResponse{
             Status: http.StatusInternalServerError, 
+            Error: true,
             Message: "failed to create product", 
             ErrorData: map[string]interface{}{ "data": err.Error() },
         }
@@ -182,6 +184,7 @@ func UpdateProduct(c *gin.Context) {
         // NOTE: return ErrorData to client only when in development
         response = responses.ProductResponse{
             Status: http.StatusBadRequest, 
+            Error: true,
             Message: "JSON format is incorrect", 
             ErrorData: map[string]interface{}{"data": err.Error()},
         } 
@@ -209,7 +212,8 @@ func UpdateProduct(c *gin.Context) {
     result, err := productCollection.UpdateOne(ctx, filter, update)
     if err != nil {
         response = responses.ProductResponse{
-            Status: http.StatusBadRequest, 
+            Status: http.StatusBadRequest,
+            Error: true, 
             Message: "failed to update product", 
             ErrorData: map[string]interface{}{"data": err.Error()},
         } 
@@ -223,5 +227,43 @@ func UpdateProduct(c *gin.Context) {
     } 
     fmt.Printf("Documents matched: %v\n", result.MatchedCount)
     fmt.Printf("Documents updated: %v\n", result.ModifiedCount)
+    c.JSON(http.StatusOK, response)
+}
+
+
+func DeleteProduct(c *gin.Context) {
+    var response responses.ProductResponse;
+    productId := c.Param("productId")
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+
+    objId, _ := primitive.ObjectIDFromHex(productId)
+
+    result, err := productCollection.DeleteOne(ctx, bson.M{"_id": objId})
+    if err != nil {
+        response = responses.ProductResponse{
+            Status: http.StatusBadRequest, 
+            Error: true,
+            Message: "failed to delete product", 
+            ErrorData: map[string]interface{}{"data": err.Error()},
+        }  
+        c.JSON(http.StatusInternalServerError, response)
+        return
+    }
+
+    if result.DeletedCount < 1 {
+        response =  responses.ProductResponse{
+            Status: http.StatusNotFound,
+            Error: true, 
+            Message: "product with specified id not found",   
+        }
+        c.JSON(http.StatusNotFound, response)
+        return
+    }
+    response =  responses.ProductResponse{
+        Status: http.StatusOK, 
+        Message: "product deleted successfully", 
+    }
+    
     c.JSON(http.StatusOK, response)
 }
