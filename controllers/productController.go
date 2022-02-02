@@ -1,13 +1,15 @@
-package controllers;
+package controllers
 
 import (
 	"context"
-    "log"
+	"fmt"
 	"go-gin-mongo-api/configs"
 	"go-gin-mongo-api/models"
 	"go-gin-mongo-api/responses"
+	"log"
 	"net/http"
 	"time"
+    
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/bson"
@@ -132,4 +134,63 @@ func GetProducts(c *gin.Context) {
         Data: map[string]interface{}{"data": products },
     }
     c.JSON(http.StatusOK, response);
+}
+
+
+// find product with id and update product 
+func UpdateProduct(c *gin.Context) {
+   
+    var response responses.ProductResponse;
+    var updateProduct models.UpdateProductModel;
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+    
+    //validate the request body
+    err := c.BindJSON(&updateProduct);
+    if  err != nil {
+        // NOTE: return ErrorData to client only when in development
+        response = responses.ProductResponse{
+            Status: http.StatusBadRequest, 
+            Message: "JSON format is incorrect", 
+            ErrorData: map[string]interface{}{"data": err.Error()},
+        } 
+        c.JSON(http.StatusBadRequest, response)
+        return
+    }
+
+    //validate required fields using validator library
+    validationErr := validate.Struct(&updateProduct);
+    if  validationErr != nil {
+        // NOTE: return ErrorData to client only when in development
+        response = responses.ProductResponse{
+            Status: http.StatusBadRequest,
+            Error: true, 
+            Message: "JSON fields validation failed", 
+            ErrorData: map[string]interface{}{"data": validationErr.Error()},
+        }
+        c.JSON(http.StatusBadRequest, response)
+        return
+    }
+    objId, _ := primitive.ObjectIDFromHex(updateProduct.Id)
+    filter := bson.M{"_id" : objId}
+    update := bson.M{ "$set": bson.M{updateProduct.Key: updateProduct.Value}}
+
+    result, err := productCollection.UpdateOne(ctx, filter, update)
+    if err != nil {
+        response = responses.ProductResponse{
+            Status: http.StatusBadRequest, 
+            Message: "failed to update product", 
+            ErrorData: map[string]interface{}{"data": err.Error()},
+        } 
+        c.JSON(http.StatusBadRequest, response)
+        return
+    }
+    response = responses.ProductResponse{
+        Status: http.StatusOK, 
+        Message: "product Updated sucessfully", 
+        ErrorData: map[string]interface{}{"data": result},
+    } 
+    fmt.Printf("Documents matched: %v\n", result.MatchedCount)
+    fmt.Printf("Documents updated: %v\n", result.ModifiedCount)
+    c.JSON(http.StatusOK, response)
 }
