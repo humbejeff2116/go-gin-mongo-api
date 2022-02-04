@@ -49,3 +49,5 @@ go.work
 tmp/*
 gorm.db
 
+/roughSheet.txt
+
