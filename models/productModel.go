@@ -1,7 +1,4 @@
 
-
-
-
 package models
 
 import (
@@ -20,7 +17,7 @@ type ProductModel struct {
 
 type SellHistory struct {
     BuyerEmail, BuyerName, BuyerId string
-    Buantity  int64
+    BuyQantity  int64
 }
 
 type UpdateProductModel struct {
