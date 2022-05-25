@@ -19,28 +19,25 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
     "github.com/google/uuid" // To generate random file names
 )
-
-
-
 type ProductController interface {
-	GetProducts()
 	CreateProduct()
-	RemoveProduct()
-	UpdateProduct()
+    UpdateProduct()
+	DeleteProduct()
+    GetProducts()
+    GetProduct()
 }
-
 
 var productCollection *mongo.Collection = configs.GetCollection(configs.MongodbClient, "golang", "products");
 var validate = validator.New()
 
-func CreateProduct(c *gin.Context){
+func CreateProduct(c *gin.Context) {
     var productImages []string
     var response responses.ProductResponse;
     ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    var product models.ProductModel
     defer cancel()
+    var product models.ProductModel
 
-    form, err := c.MultipartForm()
+    form, err := c.MultipartForm() 
     if err != nil {
         response = responses.ProductResponse{
             Status: http.StatusBadRequest, 
@@ -50,14 +47,13 @@ func CreateProduct(c *gin.Context){
         c.AbortWithStatusJSON(http.StatusBadRequest, response)
         return
     }
-    files := form.File["files"]
-    
+
+    files := form.File["files"] 
     for _, file := range files {
         filename := filepath.Base(file.Filename)
         // Generate a random file name for file so it doesn't override any file that has already been uploaded with the same name
         newFileName := uuid.New().String() + filename
-
-        // TODO... upload files to cloud storage (cdn) and save urls in database
+        // TODO... upload file to cloud storage (cdn) and save urls in database
         productImages = append(productImages, "product Image url from cdn after upload")
         // TODO... remove code below after implementing  cdn file upload functionality
         err := c.SaveUploadedFile(file, "../public/uploads/product_images/" + newFileName);
@@ -94,6 +90,7 @@ func CreateProduct(c *gin.Context){
         c.JSON(http.StatusInternalServerError, response)
         return
     }
+
     response = responses.ProductResponse{
         Status: http.StatusCreated, 
         Message: "product created successfully", 
@@ -102,16 +99,16 @@ func CreateProduct(c *gin.Context){
     c.JSON(http.StatusCreated, response)
 }
 
-// TODO... get products from database and send to client
+
 func GetProducts(c *gin.Context) {
     var response responses.ProductResponse;
     var products []bson.D;
     // create a custom mongoDB context 
     ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second);
     defer cancel();
+
     // access products using a cursor(allows us to iterate over db while holding only a subset of them in memory at a given time)
-    cursor, err := productCollection.Find(ctx, bson.D{});
-   
+    cursor, err := productCollection.Find(ctx, bson.D{}); 
     if err != nil {
         response = responses.ProductResponse{
             Status: http.StatusInternalServerError, 
@@ -121,9 +118,8 @@ func GetProducts(c *gin.Context) {
         }
         log.Fatal(err);
         c.JSON(http.StatusInternalServerError, response);
-        return
-        // panic(err)
     }
+
     // close cursor to free resources it consumes in both the client application and the MongoDB server
     defer cursor.Close(ctx);
     //populate products array with all products query results
@@ -138,7 +134,6 @@ func GetProducts(c *gin.Context) {
         log.Fatal(err);
         c.JSON(http.StatusInternalServerError, response);
         return
-        // panic(err)
     }
 
     response = responses.ProductResponse{
@@ -152,11 +147,10 @@ func GetProducts(c *gin.Context) {
 func GetProduct(c *gin.Context) {
     var response responses.ProductResponse;
     var product models.ProductModel
-    userId := c.Param("productId")
+    produdtId := c.Param("productId")
     ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
     defer cancel()
-
-    objId, _ := primitive.ObjectIDFromHex(userId)
+    objId, _ := primitive.ObjectIDFromHex(produdtId)
 
     err := productCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&product)
     if err != nil {
@@ -170,25 +164,24 @@ func GetProduct(c *gin.Context) {
         c.JSON(http.StatusInternalServerError, response)
         return
     }
+
     response = responses.ProductResponse{
         Status: http.StatusOK, 
         Message: "product gotten successfully", 
         Data: map[string]interface{}{"data": product },
     }
-
     c.JSON(http.StatusOK, response)
     
 }
 
 
 // find product with id and update product 
-func UpdateProduct(c *gin.Context) {
-   
+func UpdateProduct(c *gin.Context) {  
     var response responses.ProductResponse;
     var updateProduct models.UpdateProductModel;
     ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
-    
+    defer cancel() 
+
     //validate the request body
     err := c.BindJSON(&updateProduct);
     if  err != nil {
@@ -216,6 +209,7 @@ func UpdateProduct(c *gin.Context) {
         c.JSON(http.StatusBadRequest, response)
         return
     }
+
     objId, _ := primitive.ObjectIDFromHex(updateProduct.Id)
     filter := bson.M{"_id" : objId}
     update := bson.M{ "$set": bson.M{updateProduct.Key: updateProduct.Value}}
@@ -231,23 +225,23 @@ func UpdateProduct(c *gin.Context) {
         c.JSON(http.StatusBadRequest, response)
         return
     }
+
     response = responses.ProductResponse{
         Status: http.StatusOK, 
         Message: "product Updated sucessfully", 
         ErrorData: map[string]interface{}{"data": result},
-    } 
+    }
+
     fmt.Printf("Documents matched: %v\n", result.MatchedCount)
     fmt.Printf("Documents updated: %v\n", result.ModifiedCount)
     c.JSON(http.StatusOK, response)
 }
-
 
 func DeleteProduct(c *gin.Context) {
     var response responses.ProductResponse;
     productId := c.Param("productId")
     ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
     defer cancel()
-
     objId, _ := primitive.ObjectIDFromHex(productId)
 
     result, err := productCollection.DeleteOne(ctx, bson.M{"_id": objId})
@@ -271,6 +265,7 @@ func DeleteProduct(c *gin.Context) {
         c.JSON(http.StatusNotFound, response)
         return
     }
+
     response =  responses.ProductResponse{
         Status: http.StatusOK, 
         Message: "product deleted successfully", 
