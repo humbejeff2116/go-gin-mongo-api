@@ -1,8 +1,4 @@
 
-
-
-
-
 package configs
 
 import (
@@ -11,6 +7,9 @@ import (
     "os"
     "github.com/joho/godotenv"
 )
+
+var ServerConfigurations config = SetServerConfigurations();
+
 type app struct {
 	Port string
 }
@@ -23,14 +22,12 @@ type database struct {
 }
 type secret struct {
 	CookieSecret, SessionSecret, JwtSecret, PssrptJwtSecret  string
-
 }
 type gmail struct {
 	User, Password string
 }
 type cloudinaryConfig struct {
 	CloudName, ApiKey, Secret, Url string
-
 }
 
 type config struct {
@@ -40,9 +37,6 @@ type config struct {
 	gmail
 	cloudinaryConfig
 }
-
-
-
 
 func SetServerConfigurations() config {
     err := godotenv.Load()
@@ -71,14 +65,10 @@ func SetServerConfigurations() config {
 		PssrptJwtSecret:  os.Getenv("PSSRPT_JWT_SECRET"),
 	}
 
-
-
 	gmail := gmail{
-		User: "humbejeff2116@gmail.com",
+		User: os.Getenv("GMAIL_USERNAME"),
 		Password: os.Getenv("GMAIL_PASSWORD"),
 	}
-
-	
 
 	cloudinary := cloudinaryConfig{
 		CloudName: os.Getenv("CLOUDINARY_CLOUD_NAME"),
@@ -87,7 +77,6 @@ func SetServerConfigurations() config {
 		Url: fmt.Sprintf(`cloudinary://%v:%v@%v`, os.Getenv("CLOUDINARY_KEY"), os.Getenv("CLOUDINARY_SECRET"), os.Getenv("CLOUDINARY_CLOUD_NAME")),
 	}
 	
-
 	serverConfigurations := config{
 		app: server,
 		database: db,
